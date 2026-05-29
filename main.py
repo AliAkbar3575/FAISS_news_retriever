@@ -1,133 +1,97 @@
 import os
 import streamlit as st
 import pickle
-import time
 from dotenv import load_dotenv
 
-from langchain_groq import ChatGroq
-from langchain_community.document_loaders import UnstructuredURLLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
+from rag_pipeline.data_loader import data_loading
+from rag_pipeline.text_splitter import text_splitting
+from rag_pipeline.vectorestore import vector_store
+from rag_pipeline.retriever import retriever
 
-from langchain_core.runnables import RunnablePassthrough
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
+from langsmith import traceable
 
-st.title("NewsLens AI 🔎")
-st.write("News research tools...")
-st.sidebar.title("Enter News Articles URLs")
+load_dotenv()
 
-urls = []
-for i in range(3):
-    url = st.sidebar.text_input(f"URL {i+1} 🔗")
-    urls.append(url)
+@traceable(name="main_function")
+def main():
 
-main_placeholder = st.empty()
-query = main_placeholder.text_input("Enter your question: 🤔")
-
-process_url_clicked = st.button("Process URLs")
-
-load_dotenv()  # Load environment variables from .env file
-api_key = os.getenv("GROQ_API_KEY")
-
-llm = ChatGroq(
-    model='llama-3.3-70b-versatile',
-    temperature=0.7,
-    max_tokens=500,
-    api_key=api_key
-)
-
-file_path = "vector_index.pkl"
-
-if process_url_clicked:
+    st.title("NewsLens AI 🔎")
+    st.markdown(
+    """
+    ### AI-Powered News Research & Retrieval System
     
-    # data loading
-    loader = UnstructuredURLLoader(urls=urls)
-    main_placeholder.text("Data Loading started...🔃")
-    time.sleep(2)
-    data = loader.load()  # This will load the data from the URLs and print the content in the console
-
-    # text splitting
-    main_placeholder.text("Text Splitting started...🔃")
-    time.sleep(2)
-    splitter = RecursiveCharacterTextSplitter(
-        separators=["\n\n", "\n", ".", " "],
-        chunk_size=1000,
+    Analyze, summarize, and query multiple news articles using Retrieval-Augmented Generation (RAG).
+    """
     )
-    chunks = splitter.split_documents(data)
+    st.sidebar.title("Enter News Articles URLs")
 
-    # embedding and save to FAISS vector store
-    main_placeholder.text("Embedding and saving to FAISS vector store started...🔃")
-    time.sleep(2)
+    st.divider()
 
-    embeddings = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"  # Small, fast, free
-)
-    vector_index = FAISS.from_documents(chunks, embeddings)
+    # ----------------- sidebar structure -----------------
 
-    with open(file_path, "wb") as f:
-        pickle.dump(vector_index, f)
+    file_path = "vector_index.pkl"
 
-    
+    with st.sidebar:
 
-if query:
-    if os.path.exists(file_path):
-        with open(file_path, "rb") as f:
-            vector_index = pickle.load(f)
+        urls = []
+        for i in range(3):
+            url = st.text_input(f"URL {i+1} 🔗")
+            urls.append(url)
 
-        # retriever pipeline
-        # ---------------------------------------------------------
+        # uploaded_files = st.file_uploader(
+        #     "Upload data", accept_multiple_files=False, type="pdf"
+        # )
 
-        retriever = vector_index.as_retriever()
+        process_urls_button = st.button("Process URLs")
+
         
-        def format_docs(docs):
-            return "\n\n".join([doc.page_content for doc in docs])
+    if process_urls_button:
+        with st.spinner("Data loading started...", show_time=True):
+            data = data_loading(urls)
+        with st.spinner("Text Splitting started...", show_time=True):
+            chunks = text_splitting(data)
+        with st.spinner("Creating embeddings and saving to FAISS vector store...", show_time=True):
+            vector_index = vector_store(chunks)
 
-        # Function to extract sources from docs
-        def extract_sources(docs):
-            sources = []
-            for doc in docs:
-                # Try different metadata keys where URL might be stored
-                url = (doc.metadata.get('url') or 
-                    doc.metadata.get('source') or 
-                    doc.metadata.get('link') or
-                    doc.metadata.get('URL'))
-                if url:
-                    sources.append(url)
-            return list(set(sources))  # Remove duplicates
-        
-        prompt = ChatPromptTemplate.from_template(
-            """
-        Answer the question based only on the context.
+        st.success('Successfully loaded all documents!', icon="✅")
 
-        Context:
-        {context}
+    # -------------- front page ------------------
 
-        Question:
-        {question}
-        """
-        )
 
-        rag_chain = (
-            {
-                "context": retriever | format_docs,
-                "question": RunnablePassthrough()
-            }
-            | prompt
-            | llm
-            | StrOutputParser()
-        )
+    query = st.text_input("Enter your question 🤔")
+    answer_button = st.button("Answer")    
 
-        retrieved_docs = retriever.invoke(query)
-        answer = rag_chain.invoke(query)
 
-        sources = extract_sources(retrieved_docs)
+    if answer_button:
 
-        st.header("Answer:")
-        st.write(answer)
+        if os.path.exists(file_path):
+            with open(file_path, "rb") as f:
+                vector_index = pickle.load(f)
 
-        st.header("Sources:")
-        for i, source in enumerate(sources, 1):
-            st.write(f"{i}. {source}")
-        
+        with st.spinner("Retrieving you answer...", show_time=True):
+            response, retrieved_docs = retriever(vector_index, query)
+
+        st.header("Question")
+        st.write(query)
+
+        st.header("Answer")
+        st.write(response)
+
+        st.header("Sources")
+        st.write(f"{retrieved_docs[0].metadata['source']}")
+
+
+
+if __name__ == "__main__":
+    main()
+
+    # import streamlit as st
+
+    # option = st.selectbox(
+    #     "How would you like to be contacted?",
+    #     ("Email", "Home phone", "Mobile phone"),
+    #     index=None,
+    #     placeholder="Select contact method...",
+    # )
+
+    # st.write("You selected:", option)
