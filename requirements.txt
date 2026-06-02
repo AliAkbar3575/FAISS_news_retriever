@@ -1,5 +1,13 @@
-faiss-cpu
-sentence-transformers
+langchain
 langchain-community
-langchain-openai
+langchain-core
+langchain-groq
+langchain-text-splitters
+langsmith
 python-dotenv
+sentence-transformers
+faiss-cpu
+selenium
+beautifulsoup4
+requests
+streamlit
