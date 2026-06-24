@@ -1,3 +1,6 @@
 .env
 01_practice.ipynb
 vector_index.pkl
+__pycache__/
+*.pyc
+*.pyo

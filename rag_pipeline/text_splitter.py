@@ -1,14 +1,25 @@
-import time
+import logging
+from typing import List
+
+from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langsmith import traceable
+
+logger = logging.getLogger(__name__)
 
 
-@traceable(name="text_splitting")
-def text_splitting(data):
-    time.sleep(2)
+def text_splitting(
+    data: List[Document],
+    chunk_size: int = 800,
+    chunk_overlap: int = 150,
+) -> List[Document]:
+    if not data:
+        raise ValueError("No documents to split")
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=800,
-        chunk_overlap=150
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        length_function=len,
+        separators=["\n\n", "\n", ".", " ", ""],
     )
     chunks = splitter.split_documents(data)
+    logger.info("Split %d documents into %d chunks", len(data), len(chunks))
     return chunks

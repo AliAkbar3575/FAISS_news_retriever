@@ -7,7 +7,7 @@ langsmith
 python-dotenv
 sentence-transformers
 faiss-cpu
-selenium
 beautifulsoup4
 requests
 streamlit
+pypdf
