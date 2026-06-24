@@ -155,7 +155,8 @@ def render_process_tab():
                 parts.append(f"{web_count} web article(s)")
             if pdf_count:
                 parts.append(f"{pdf_count} PDF page(s)")
-            st.success(f"✅ Processed {' & '.join(parts)} into {len(chunks)} text chunks.")
+            st.toast("✅ Processing complete! Switch to Ask Questions tab.", icon="🎉")
+            st.rerun()
         except Exception as e:
             logger.exception("Processing pipeline failed")
             st.error(f"❌ Processing failed: {e}")
